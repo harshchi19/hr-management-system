@@ -6,17 +6,17 @@ from dotenv import load_dotenv
 import os
 import subprocess
 
-st.set_page_config(page_title="HR Dashboard",layout="wide")
+st.set_page_config(page_title="HR Dashboard", layout="wide")
 load_dotenv()
 
 with st.sidebar:
     st.title("Hi, HR!")
-    page = st.selectbox("",("Home", "ChatBot Assistant", "Interview Scheduling", "Analytics Dashboard", "Leave Management"),label_visibility = "collapsed",)
-    
+    page = st.selectbox("", ("Home", "ChatBot Assistant", "Interview Scheduling", "Analytics Dashboard", "Leave Management"), label_visibility="collapsed")
+
 if page == "Home":
     st.header("Dashboard")
     st.subheader("✨Welcome to Company!✨")
-    
+
 elif page == "ChatBot Assistant":
     OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
     OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -52,7 +52,6 @@ elif page == "ChatBot Assistant":
                 st.error(f"Detailed error: {response.text}")
             return None
 
-    # Main content for OpenAI service
     st.header("AI Chatbot Assistant")
 
     if 'generated_text' not in st.session_state:
@@ -78,8 +77,7 @@ elif page == "ChatBot Assistant":
             st.subheader("Generated Response:")
             st.write(st.session_state.generated_text)
 
-            # Check if response is too short and offer to expand
-            if len(st.session_state.generated_text.split()) < 50:  # Arbitrary threshold
+            if len(st.session_state.generated_text.split()) < 50:
                 if st.button("The response seems brief. Would you like me to expand on it?"):
                     expansion_prompt = f"Please provide a more detailed explanation of the following: {st.session_state.generated_text}"
                     expanded_response = generate_text(expansion_prompt, max_tokens, temperature, top_p)
@@ -102,7 +100,6 @@ elif page == "Interview Scheduling":
         reader = pdf.PdfReader(uploaded_file)
         return "".join(page.extract_text() for page in reader.pages)
 
-    # Custom CSS
     st.markdown("""
     <style>
         :root {
@@ -248,112 +245,58 @@ elif page == "Interview Scheduling":
                 st.markdown("""
                 <div class="card">
                     <h3>Job Description</h3>
-                    <p>Enter the job description you're applying for:</p>
+                    <p>Enter the job description below. This will be used to assess the candidate's resume.</p>
                 </div>
                 """, unsafe_allow_html=True)
-                job_description = st.text_area("", height=200, key="job_desc")
-                if job_description:
-                    st.session_state.job_description = job_description
-
+                job_desc = st.text_area("Job Description", height=200)
             with col2:
                 st.markdown("""
                 <div class="card">
-                    <h3>Upload Resume</h3>
-                    <p>Upload your resume in PDF format:</p>
+                    <h3>Resume Upload</h3>
+                    <p>Upload the candidate's resume in PDF format.</p>
                 </div>
                 """, unsafe_allow_html=True)
-                uploaded_file = st.file_uploader("", type="pdf", key="resume")
-                if uploaded_file:
-                    st.success("Resume uploaded successfully!")
-                    st.session_state.uploaded_file = uploaded_file
-
+                uploaded_file = st.file_uploader("Upload Resume", type="pdf")
+        
         with tab2:
-            st.markdown("""
-            <div class="card">
-                <h3>Resume Analysis Dashboard</h3>
-                <p>Select an analysis type and view detailed insights about your resume.</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            col1, col2 = st.columns([1, 3])
-            
-            with col1:
-                st.markdown("""
-                <div class="analysis-sidebar">
-                    <h4>Analysis Options</h4>
+            if uploaded_file and job_desc.strip():
+                prompt = st.text_area("AI Analysis Prompt", "Provide an analysis of the candidate's qualifications based on the job description and resume.", height=100)
+                pdf_text = extract_pdf_text(uploaded_file)
+                result = get_ai_response(prompt, pdf_text, job_desc)
+                
+                st.markdown(f"""
+                <div class="result-card">
+                    <h3>AI Analysis Result</h3>
+                    <div class="result-content">{result}</div>
                 </div>
                 """, unsafe_allow_html=True)
-                analysis_type = st.radio("", ["Resume Analysis", "Skill Gap Analysis", "Match Percentage"], key="analysis_type")
-                
-                if st.button("Run Analysis", key="run_analysis"):
-                    if 'uploaded_file' not in st.session_state or 'job_description' not in st.session_state:
-                        st.error("Please upload your resume and enter a job description in the Input tab.")
-                    else:
-                        st.session_state.analysis_run = True
-
-            with col2:
-                if 'analysis_run' in st.session_state and st.session_state.analysis_run:
-                    with st.spinner("Analyzing your resume..."):
-                        pdf_text = extract_pdf_text(st.session_state.uploaded_file)
-                        prompt = get_prompt(analysis_type)
-                        response = get_ai_response(prompt, pdf_text, st.session_state.job_description)
-                        display_results(analysis_type, response)
-                else:
-                    st.info("Select an analysis type and click 'Run Analysis' to get started.")
+            else:
+                st.warning("Please provide a job description and upload a resume to proceed with the analysis.")
 
         with tab3:
             st.markdown("""
             <div class="card">
-                <h3>How ResumeMaster AI Works</h3>
-                <p>Our advanced AI system analyzes your resume against the job description to provide valuable insights:</p>
-                <ul>
-                    <li><strong>Resume Analysis:</strong> Get a detailed evaluation of your resume's strengths and areas for improvement.</li>
-                    <li><strong>Skill Gap Analysis:</strong> Identify missing skills and receive personalized recommendations for enhancement.</li>
-                    <li><strong>Match Percentage:</strong> Obtain a quantitative assessment of how well your resume aligns with the job requirements.</li>
-                </ul>
-                <p>To get started, simply upload your resume and paste the job description in the Input tab, then choose your analysis type and run the analysis!</p>
+                <h3>How It Works</h3>
+                <p>This tool uses advanced AI to analyze resumes against job descriptions. The AI identifies key skills and experiences in the resume and compares them to the job requirements, providing an analysis of the candidate's suitability for the role.</p>
             </div>
             """, unsafe_allow_html=True)
 
-    def get_prompt(analysis_type):
-        prompts = {
-            "Resume Analysis": "Analyze the resume against the job description. Provide a professional assessment of the candidate's alignment with the role, highlighting strengths and areas for improvement. Format your response with clear headings and bullet points for easy readability.",
-            "Skill Gap Analysis": "Identify skill gaps between the resume and job description. Offer specific, actionable recommendations for skill enhancement and professional development. Use a table format to display skills: Required Skills | Current Level | Recommended Action",
-            "Match Percentage": "Calculate the match percentage between the resume and job description. Provide: 1) Overall match percentage, 2) Key matching skills, 3) Missing key skills, 4) Recommendations for improvement. Use charts or percentages where appropriate."
-        }
-        return prompts[analysis_type]
-
-    def display_results(analysis_type, response):
-        st.markdown(f"""
-        <div class="card result-card">
-            <h3>{analysis_type} Results</h3>
-            <div class="result-content">
-                {response}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if analysis_type == "Match Percentage":
-            # Example of adding a visual element (This is a placeholder, you'd need to extract the actual percentage from the AI response)
-            match_percentage = 75  # This should be extracted from the AI response
-            st.progress(match_percentage / 100)
-            # st.write(f"Overall Match: {match_percentage}%")
-
-    if __name__ == "__main__":
-        main()
-
-    st.markdown("---")
-    st.markdown("<div style='text-align: center; color: #6c757d;'>© 2024 ResumeMaster AI. All rights reserved.</div>", unsafe_allow_html=True)
+    main()
 
 elif page == "Analytics Dashboard":
-    st.header("Analytics Dashboard")
+    st.title("Analytics Dashboard")
+    st.subheader("🔎 View detailed analytics here.")
 
 elif page == "Leave Management":
-    st.header("Leave Management")
-    # Run the Leave Management app.py
     try:
-         subprocess.run(["streamlit", "run", "Leave Management/app.py"], check=True)
+        subprocess.run(["streamlit", "run", "Leave Management/app.py"], check=True)
     except subprocess.CalledProcessError as e:
-         st.error(f"An error occurred while running the Leave Management app: {e}")
-    except FileNotFoundError:
-         st.error("The Leave Management app.py file was not found. Please check the file path.")
+        st.error(f"Error running the Leave Management app: {e}")
+        st.error(f"Detailed error output: {e.output}")
+
+        if "not found" in str(e.output).lower():
+            st.error("The file 'app.py' in the 'Leave Management' directory was not found. Please check the file path.")
+        elif "Permission denied" in str(e.output).lower():
+            st.error("Permission denied while trying to run the app. Please check file permissions.")
+        else:
+            st.error("An unexpected error occurred while trying to run the Leave Management app. Please check the terminal output for more details.")
